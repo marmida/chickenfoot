@@ -115,8 +115,6 @@ class Game(object):
 
 		# player-by-player turns start now
 		for player in cycle(self.players):
-			self.report.turn_start(player, game.state)
-			self.debug('player start: %s; state %s; hand %s' % (player.name, self.state, [(tile.a, tile.b) for tile in player.hand]))
 			# determine the subset of the player's hand that can be played
 			opportunities = self._opportunities(player)
 
@@ -212,7 +210,6 @@ class Game(object):
 		for player in self.players:
 			for i in range(self.starting_hand_size):
 				player.add_tile(self.boneyard.draw())
-			self.report.draw(player, player.hand)
 	
 	def _root_tile_turn(self):
 		'''
@@ -227,16 +224,13 @@ class Game(object):
 			tile = player.fetch_tile(self.required_root, self.required_root)
 			if tile:
 				# we found the starting tile
-				self.report.root_found(player, tile)
-
+				
 				# first, re-order self.players into the order of play
 				# the player with the starting tile begins play; everybody else is randomly seated
 				# this is a mild deviation from table-top play; usually nobody re-seats themselves
 				self.players.remove(player)
 				random.shuffle(self.players)
 				self.players[0:0] = [player]
-
-				self.report.play_order(self.players)
 
 				# next, seed the board
 				self.root = Root(tile)
@@ -248,8 +242,7 @@ class Game(object):
 			# all players need to draw
 			for i in self.players:
 				i.add_tile(self.boneyard.draw())
-			self.report.root_not_found()
-	
+			
 	def _opportunities(self, player):
 		'''
 		Return an iterable of tiles that this player could play
