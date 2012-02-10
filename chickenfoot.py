@@ -4,6 +4,7 @@
 Using rules from here: http://www.pagat.com/tile/wdom/chickenfoot.html
 '''
 
+import logging
 import operator
 import random
 
@@ -53,6 +54,68 @@ def from_iterables(iterable):
 		for j in i:
 			yield j
 
+class LoggingReporter(object):
+	def __init__(self):
+		self.logger = logging.getLogger('chickenfoot')
+		self.logger.setLevel('DEBUG')
+		self.logger.addHandler(logging.StreamHandler()) # writes to stderr
+
+	def root_found(self, player, tile):
+		self.logger.info('Root tile %s played by %s' % (tile, player.name))
+
+	def play_order(self, players):
+		self.logger.info('Order of play determined: %s' % [player.name for player in players])
+
+	def draw(self, player, hand):
+		self.logger.info('Player draw: %s, new hand: %s' % (player.name, hand))
+
+	def turn_start(self, player, state):
+		self.logger.info('Turn start: %s; game state: %s' % (player.name, state))
+		
+	def root_not_found(self):
+		self.logger.info('Root not found, all players drawing')
+
+	def opportunities(self, player, tiles):
+		self.logger.debug('Opportunities for player %s: %s' % (player.name, tiles))
+
+	def play(self, player, tile, parent):
+		self.logger.info('Player %s played %s under %s' % (player.name, tile, parent.tile))
+
+class ReporterCollection(object):
+	def __init__(self, reporters):
+		self.reporters = reporters
+	
+	# todo: find a way to unify these function defs
+
+	def root_round(self, *args, **kwargs):
+		self._dispatch('root_round', args, kwargs)
+
+	def play_order(self, *args, **kwargs):
+		self._dispatch('play_order', args, kwargs)
+
+	def draw(self, *args, **kwargs):
+		self._dispatch('draw', args, kwargs)
+
+	def turn_start(self, *args, **kwargs):
+		self._dispatch('turn_start', args, kwargs)
+
+	def root_not_found(self, *args, **kwargs):
+		self._dispatch('root_not_found', args, kwargs)
+
+	def root_found(self, *args, **kwargs):
+		self._dispatch('root_found', args, kwargs)
+
+	def opportunities(self, *args, **kwargs):
+		self._dispatch('opportunities', args, kwargs)
+
+	def play(self, *args, **kwargs):
+		self._dispatch('play', args, kwargs)
+
+	def _dispatch(self, method_name, args, kwargs):
+		for reporter in self.reporters:
+			method = getattr(reporter, method_name)
+			method(*args, **kwargs)
+
 class Game(object):
 	'''
 	Store the state of the round in play, being the tiles on the field, in the boneyard, and in player's hands
@@ -69,7 +132,7 @@ class Game(object):
 		'''
 		ROOT, OPEN, CHICKIE = ('R', 'O', 'C')
 
-	def __init__(self, required_root, set_size, starting_hand_size, players):
+	def __init__(self, required_root, set_size, starting_hand_size, players, reporters=[]):
 		'''
 		* required_root - the number of pips that must be on the root double; this changes with each round
 		* set_size - size of the set of dominoes we're playing with; e.g. 9 indicates a "double-9" set
@@ -78,6 +141,7 @@ class Game(object):
 		self.boneyard = Boneyard(set_size)
 		self.starting_hand_size = starting_hand_size
 		self.players = players
+		self.report = ReporterCollection(reporters)
 
 		# some placeholders
 		self._root = None
@@ -115,10 +179,11 @@ class Game(object):
 
 		# player-by-player turns start now
 		for player in cycle(self.players):
+			self.report.turn_start(player, self.state)
+			
 			# determine the subset of the player's hand that can be played
 			opportunities = self._opportunities(player)
-
-			print 'initial opportunities: %s' % [(tile.a, tile.b) for tile in opportunities]
+			self.report.opportunities(player, opportunities)
 	
 			if not opportunities:
 				# we're allowed to draw once
@@ -140,9 +205,12 @@ class Game(object):
 				else:
 					# can attach at any leaf
 					parent = self.root.find_attach_position(tile)
-				
+			
 				# update internal state in reaction to the last play
 				self._handle_play(tile, parent)
+
+				# report the play
+				self.report.play(player, tile, parent)
 			
 			if self._round_over():
 				# this round of the game is over
@@ -210,6 +278,7 @@ class Game(object):
 		for player in self.players:
 			for i in range(self.starting_hand_size):
 				player.add_tile(self.boneyard.draw())
+			self.report.draw(player, player.hand)
 	
 	def _root_tile_turn(self):
 		'''
@@ -224,13 +293,16 @@ class Game(object):
 			tile = player.fetch_tile(self.required_root, self.required_root)
 			if tile:
 				# we found the starting tile
-				
+				self.report.root_found(player, tile)
+
 				# first, re-order self.players into the order of play
 				# the player with the starting tile begins play; everybody else is randomly seated
 				# this is a mild deviation from table-top play; usually nobody re-seats themselves
 				self.players.remove(player)
 				random.shuffle(self.players)
 				self.players[0:0] = [player]
+
+				self.report.play_order(self.players)
 
 				# next, seed the board
 				self.root = Root(tile)
@@ -242,7 +314,8 @@ class Game(object):
 			# all players need to draw
 			for i in self.players:
 				i.add_tile(self.boneyard.draw())
-			
+			self.report.root_not_found()
+	
 	def _opportunities(self, player):
 		'''
 		Return an iterable of tiles that this player could play
@@ -438,7 +511,7 @@ class Tile(object):
 		self.a = a
 		self.b = b
 
-	def __str__(self):
+	def __repr__(self):
 		return '<Tile (%s, %s)>' % (self.a, self.b)
 
 	@property

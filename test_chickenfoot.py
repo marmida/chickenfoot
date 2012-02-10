@@ -480,7 +480,7 @@ class GameTest(unittest.TestCase):
 			'''
 			self.players[0].hand = [chickenfoot.Tile(a, b) for a, b in [(9, 9), (9, 1), (9, 2), (9, 3), (9, 4), (1, 0)]]
 		
-		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')])
+		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')], reporters=[chickenfoot.LoggingReporter()])
 
 		# mock out game._setup_player_hands and Boneyard.draw
 		game._setup_player_hands = types.MethodType(mock_setup_player_hands, game)
@@ -489,14 +489,21 @@ class GameTest(unittest.TestCase):
 		game.run()
 
 		# now assert that the first player has an empty hand, and that the tree 
-		# is build as expected
+		# was built as expected
 		self.assertEquals([], game.players[0].hand)
 		self.assertEquals((9, 9), game.root.tile.ends)
-		self.assertEquals(1, len(game.root.children))
-		self.assertEquals((9, 1), game.root.children[0].tile.ends)
-		self.assertEquals(1, len(game.root.children[0].children))
-		self.assertEquals((1, 0), game.root.children[0].children[0].tile.ends)
-		self.assertEquals(0, len(game.root.children[0].children[0].children))
+		# root should have 4 children, in any order
+		self.assertEquals(set([(9, 1), (9, 2), (9, 3), (9, 4)]), set([child_node.tile.ends for child_node in game.root.children]))
+
+		# find the (9, 1) tile
+		for child in game.root.children:
+			if child.tile.ends == (9, 1):
+				# first child of the root should have 1 sub-child
+				self.assertEquals((1, 0), child.children[0].tile.ends)
+				break
+		
+		# game should be in the 'OPEN' state
+		self.assertEquals(game.State.OPEN, game.state)
 
 class TileTest(unittest.TestCase):
 	def test_ends(self):
