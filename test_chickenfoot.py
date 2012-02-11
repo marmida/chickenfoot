@@ -8,6 +8,7 @@ If you want to run a single test, try: nosetests test_chickenfoot:ClassName.meth
 
 # std lib imports
 import collections
+import itertools
 import random
 import types
 import unittest
@@ -139,12 +140,18 @@ class NodeTest(unittest.TestCase):
 class GameTest(unittest.TestCase):
 	def test_setup_player_hands(self):
 		'''
-		Game._setup_player_hands: players get the expected number of tiles
+		Game._setup_player_hands: players get the expected number of tiles, and 'initial_hands' is reported
 		'''
+		class MockReporter(object):
+			def initial_hands(self, players):
+				self.players = players
+
 		p1 = chickenfoot.Player('p1')
-		game = chickenfoot.Game(6, 6, 4, [p1])
+		reporter = MockReporter()
+		game = chickenfoot.Game(6, 6, 4, [p1], reporters=[reporter])
 		game._setup_player_hands()
 		self.assertEquals(4, len(p1.hand))
+		self.assertEquals([p1], reporter.players)
 
 	def test_root_tile_turn_found(self):
 		'''
@@ -449,14 +456,8 @@ class GameTest(unittest.TestCase):
 		# check that _root_tile_turn got called the expected number of times
 		self.assertEquals(3, game._root_tile_turn_call_count)
 
-	def test_run_one_player(self):
-		'''
-		Game.run: plays tiles correctly in a one-player game
-
-		By carefully crafting a player's hand, we can guarantee the outcome of
-		the round.  Mock out the player's initial draw, and then check that 
-		'run' achieved the expected end of the game.
-		'''
+	def _mock_game_methods(self, game, hands):
+		'Overwrite Game.draw and Game._setup_player_hands'
 		# create an alias for the current instance - the TestCase - so we can
 		# use it in mocks
 		executing_test = self
@@ -478,14 +479,23 @@ class GameTest(unittest.TestCase):
 				(9, 4) - finishes root arms
 				(1, 0) - one open play
 			'''
-			self.players[0].hand = [chickenfoot.Tile(a, b) for a, b in [(9, 9), (9, 1), (9, 2), (9, 3), (9, 4), (1, 0)]]
+			for player, hand in itertools.izip(self.players, hands):
+				player.hand = hand
 		
-		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')], reporters=[chickenfoot.LoggingReporter()])
-
-		# mock out game._setup_player_hands and Boneyard.draw
+		# replace destination attributes
 		game._setup_player_hands = types.MethodType(mock_setup_player_hands, game)
 		game.boneyard.draw = types.MethodType(mock_draw, game.boneyard)
 
+	def test_run_one_player(self):
+		'''
+		Game.run: plays tiles correctly in a one-player game
+
+		By carefully crafting a player's hand, we can guarantee the outcome of
+		the round.  Mock out the player's initial draw, and then check that 
+		'run' achieved the expected end of the game.
+		'''
+		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')], reporters=[chickenfoot.LoggingReporter()])
+		self._mock_game_methods(game, [[chickenfoot.Tile(a, b) for a, b in [(9, 9), (9, 1), (9, 2), (9, 3), (9, 4), (1, 0)]]])
 		game.run()
 
 		# now assert that the first player has an empty hand, and that the tree 
@@ -504,6 +514,45 @@ class GameTest(unittest.TestCase):
 		
 		# game should be in the 'OPEN' state
 		self.assertEquals(game.State.OPEN, game.state)
+
+		# score dict should have been created
+		self.assertEquals({game.players[0]: 0}, game.scores)
+
+	def test_run_two_player(self):
+		'''
+		Game.run: plays tiles correctly in a two-player game
+
+		Using crafted hands, assert that the game completes as expected.
+		'''
+		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1'), chickenfoot.MaxValuePlayer('p2')], reporters=[chickenfoot.LoggingReporter()])
+		self._mock_game_methods(
+			game, 
+			[
+				[chickenfoot.Tile(a, b) for a, b in [(9, 9), (9, 1), (9, 2), (2, 2)]],
+				[chickenfoot.Tile(a, b) for a, b in [(9, 3), (9, 4), (1, 0)]],
+			]
+		)
+		game.run()
+
+		# now assert that the first player has an empty hand, and that the tree 
+		# was built as expected
+		self.assertEquals([], game.players[0].hand)
+		self.assertEquals((9, 9), game.root.tile.ends)
+		# root should have 4 children, in any order
+		self.assertEquals(set([(9, 1), (9, 2), (9, 3), (9, 4)]), set([child_node.tile.ends for child_node in game.root.children]))
+
+		# find the (9, 1) tile
+		for child in game.root.children:
+			if child.tile.ends == (9, 1):
+				# first child of the root should have 1 sub-child
+				self.assertEquals((1, 0), child.children[0].tile.ends)
+				break
+		
+		# game should be in the 'OPEN' state
+		self.assertEquals(game.State.OPEN, game.state)
+
+		# score dict should have been created
+		self.assertEquals({'p1': 4, 'p2': 0}, dict((player.name, score) for player, score in game.scores.iteritems()))
 
 class TileTest(unittest.TestCase):
 	def test_ends(self):

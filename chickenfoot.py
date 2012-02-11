@@ -6,6 +6,7 @@ Using rules from here: http://www.pagat.com/tile/wdom/chickenfoot.html
 
 import logging
 import operator
+import optparse
 import random
 
 # In this particular version of the game, the double blank is worth 50 points.
@@ -66,8 +67,8 @@ class LoggingReporter(object):
 	def play_order(self, players):
 		self.logger.info('Order of play determined: %s' % [player.name for player in players])
 
-	def draw(self, player, hand):
-		self.logger.info('Player draw: %s, new hand: %s' % (player.name, hand))
+	def draw(self, player, tile):
+		self.logger.info('Player %s drew tile: %s' % (player.name, tile))
 
 	def turn_start(self, player, state):
 		self.logger.info('Turn start: %s; game state: %s' % (player.name, state))
@@ -81,9 +82,17 @@ class LoggingReporter(object):
 	def play(self, player, tile, parent):
 		self.logger.info('Player %s played %s under %s' % (player.name, tile, parent.tile))
 
+	def initial_hands(self, players):
+		self.logger.info('Player hands: %s' % (pprint.pformat(dict((player.name, player.hand) for player in players))))
+
 class ReporterCollection(object):
 	def __init__(self, reporters):
 		self.reporters = reporters
+
+	def _dispatch(self, method_name, args, kwargs):
+		for reporter in self.reporters:
+			method = getattr(reporter, method_name)
+			method(*args, **kwargs)
 	
 	# todo: find a way to unify these function defs
 
@@ -111,10 +120,8 @@ class ReporterCollection(object):
 	def play(self, *args, **kwargs):
 		self._dispatch('play', args, kwargs)
 
-	def _dispatch(self, method_name, args, kwargs):
-		for reporter in self.reporters:
-			method = getattr(reporter, method_name)
-			method(*args, **kwargs)
+	def initial_hands(self, *args, **kwargs):
+		self._dispatch('initial_hands', args, kwargs)
 
 class Game(object):
 	'''
@@ -183,7 +190,6 @@ class Game(object):
 			
 			# determine the subset of the player's hand that can be played
 			opportunities = self._opportunities(player)
-			self.report.opportunities(player, opportunities)
 	
 			if not opportunities:
 				# we're allowed to draw once
@@ -192,6 +198,7 @@ class Game(object):
 					# there was at least one pile in the boneyard;
 					# add it to the player's hand and rebuild their opportunities
 					player.add_tile(drawn)
+					self.report.draw(player, drawn)
 					opportunities = self._opportunities(player)
 			
 			if opportunities:
@@ -216,7 +223,8 @@ class Game(object):
 				# this round of the game is over
 				break
 
-		# todo: score player's hands and return the results.
+		# score player's hands
+		self.scores = dict((player, player.score) for player in self.players)
 	
 	def _handle_play(self, tile, parent):
 		'''
@@ -278,7 +286,9 @@ class Game(object):
 		for player in self.players:
 			for i in range(self.starting_hand_size):
 				player.add_tile(self.boneyard.draw())
-			self.report.draw(player, player.hand)
+			
+		# report the new hands
+		self.report.initial_hands(self.players)
 	
 	def _root_tile_turn(self):
 		'''
@@ -296,11 +306,13 @@ class Game(object):
 				self.report.root_found(player, tile)
 
 				# first, re-order self.players into the order of play
-				# the player with the starting tile begins play; everybody else is randomly seated
+				# the player with the starting tile is moved to the end of the order, because 
+				# they're playing this first tile.
+				# everybody else is randomly seated
 				# this is a mild deviation from table-top play; usually nobody re-seats themselves
 				self.players.remove(player)
 				random.shuffle(self.players)
-				self.players[0:0] = [player]
+				self.players.append(player)
 
 				self.report.play_order(self.players)
 
@@ -330,7 +342,12 @@ class Game(object):
 
 		# otherwise, any leaf can be used to make a play
 		leaf_ends = set(from_iterables((i.tile.ends for i in self.root.leaves)))
-		return [tile for tile in player.hand if leaf_ends & set([i for i in tile.ends])]
+		opportunities = [tile for tile in player.hand if leaf_ends & set([i for i in tile.ends])]
+		
+		# report these opportunities before returning them
+		self.report.opportunities(player, opportunities)
+		return opportunities
+
 
 class Orientation(object):
 	'''
@@ -500,6 +517,10 @@ class Player(object):
 		'Overriden by derived classes to implement their choosing strategies.'
 		raise NotImplementedError
 
+	@property
+	def score(self):
+		return sum(tile.value for tile in self.hand)
+
 class Tile(object):
 	'''
 	A domino.  Has two ends with a number of pips on either end.
@@ -557,3 +578,71 @@ class MaxValuePlayer(Player):
 		'opportunities' is guaranteed to not be empty
 		'''
 		return sorted(opportunities, key=operator.attrgetter('value'), reverse=True)[0]
+
+class GameRunner(object):
+	def __init__(self, rounds, player_class_names, set_size, starting_hand_size, reporter_class_names):
+		self.rounds = rounds
+		self.players = [globals()[class_name]('p%d' % num) for num, class_name in enumerate(player_class_names)]
+		self.set_size = set_size
+		self.starting_hand_size = starting_hand_size
+		self.reporters = [globals()[class_name]() for class_name in reporter_class_names]
+		self.aggregate_scores = dict((player, 0) for player in self.players)
+
+	def next_required_root(self):
+		while True:
+			for i in xrange(self.set_size+1):
+				yield i
+
+	def run(self):
+		for i in xrange(self.rounds):
+			required_root = self.next_required_root()
+			game = Game(required_root, self.set_size, self.starting_hand_size, self.players, reporters=[])
+			game.run()
+			for player in self.players:
+				game.aggregate_scores[player] += game.scores[player]
+
+def main():
+	'''
+	Runs the simulation.
+
+	Create a GameRunner, seed it with options parsed from the command line, and invoke it.
+	'''
+	parser = optparse.OptionParser(
+		usage='%prog N',
+		description='Simulates running N number of rounds of the dominoes game, "Chicken foot," and prints a result summary',
+	)
+	parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False)
+	parser.add_option('-p', '--player', action='append', dest='players', default=['MaxValuePlayer', 'RandomPlayer'])
+	parser.add_option('--set-size', action='store', dest='set_size', default=9)
+	parser.add_option('--starting-hand-size', action='store', dest='starting_hand_size', default=7)
+
+	opts, args = parser.parse_args()
+
+	if len(args) != 1:
+		parser.error('Requires a number of a rounds to simulate.')
+	num_rounds = args[0]
+	
+	# test converting num_rounds to an int
+	try: 
+		num_rounds = int(num_rounds)
+	except ValueError:
+		parser.error('Invalid number of rounds: %s' % num_rounds)
+	
+	# make sure we're simulating at least one round
+	if num_rounds <= 0:
+		parser.error('Number of rounds must be greater than 0')
+
+	# figure out what we'll report to
+	reporters = [LoggingReporter()] if opts.verbose else []
+
+	# build the runner, and away we go
+	runner = GameRunner(num_rounds, opts.players, opts.set_size, opts.starting_hand_size, reporters)
+	runner.run()
+
+	print 'Rounds: %s' % runner.num_rounds
+	print 'Aggregate scores:'
+	for player, score in runner.aggregate_scores.iteritems():
+		print '   %s % 10d' % (player, score)
+
+if __name__ == '__main__':
+	main()
