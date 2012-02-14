@@ -340,7 +340,7 @@ class Game(object):
 			return [tile for tile in player.hand if self.root.tile.a in tile.ends]
 
 		# otherwise, any leaf can be used to make a play
-		leaf_ends = set(from_iterables((i.tile.ends for i in self.root.leaves)))
+		leaf_ends = set(i.bottom for i in self.root.leaves)
 		opportunities = [tile for tile in player.hand if leaf_ends & set([i for i in tile.ends])]
 		
 		# report these opportunities before returning them
@@ -680,7 +680,7 @@ def main():
 	runner = GameRunner(num_rounds, opts.players, opts.set_size, opts.starting_hand_size, reporters)
 	runner.run()
 
-	print 'Rounds: %s' % runner.num_rounds
+	print 'Rounds: %s' % runner.rounds
 	print 'Aggregate scores:'
 	for player, score in runner.aggregate_scores.iteritems():
 		print '   %s % 10d' % (player, score)

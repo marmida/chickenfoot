@@ -428,6 +428,25 @@ class GameTest(unittest.TestCase):
 		# be allowed in normal play
 		self.assertEquals([], game._opportunities(player))
 
+	def test_opportunities_bottom_only(self):
+		'Game._opportunities: only considers the bottom of leaf tiles for attachment potential'
+		# construct a game where the player has a hand that matches the top of a leaf tile, but not the bottom
+		player = chickenfoot.Player('p1')
+		game = chickenfoot.Game(0, 9, 7, [player])
+		
+		# build the board: root (0, 0)
+		game.root = chickenfoot.Root(chickenfoot.Tile(0, 0))
+		# add (0, 1), (0, 2), (0, 3), (0, 4) under the root
+		game.root.children = [chickenfoot.Node(chickenfoot.Tile(0, i), 1, chickenfoot.Orientation.NORMAL) for i in range(1, 5)]
+
+		# give the player (0, 5); they should have no opportunities
+		player.hand = [chickenfoot.Tile(0, 5)]
+		self.assertEquals([], game._opportunities(player))
+
+		# give the player (4, 1), it should be an opportunity
+		player.hand = [chickenfoot.Tile(4, 1)]
+		self.assertEquals(1, len(game._opportunities(player)))
+
 	def test_run_root_tile_turn(self):
 		'''
 		Game.run: invokes _root_tile_turn until self.root is assigned
