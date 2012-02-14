@@ -503,7 +503,7 @@ class Player(object):
 		check for both (a, b) and (b, a).
 		'''
 		for tile in self.hand:
-			if (tile.a == a and tile.b == b) or (tile.a == b and tile.a ==a):
+			if (tile.a == a and tile.b == b) or (tile.a == b and tile.b == a):
 				self.hand.remove(tile)
 				return tile
 

@@ -633,6 +633,26 @@ class TileTest(unittest.TestCase):
 class PlayerTest(unittest.TestCase):
 	'Test Player, RandomPlayer, and MaxValuePlayer'
 
+	def test_fetch_tile(self):
+		'Player.fetch_tile: finds matching tiles'
+		# build a player, give them a tile, and confirm that we can fetch it
+		player = chickenfoot.Player('p1')
+		tile = chickenfoot.Tile(1, 2)
+		player.hand = [tile]
+		self.assertEquals(tile, player.fetch_tile(1, 2))
+
+		# player's hand should be empty
+		self.assertEquals([], player.hand)
+
+		# restore the tile to their hand, and try asking for the opposite order of ends
+		player.hand = [tile]
+		self.assertEquals(tile, player.fetch_tile(2, 1))
+
+		# asking for a different tile should return None
+		player.hand = [tile]
+		self.assertEquals(None, player.fetch_tile(2, 2))
+
+
 	def test_pick_tile(self):
 		'Player.pick_tile: removes the tile chosen by _pick_tile'
 		player = chickenfoot.Player('p1')
