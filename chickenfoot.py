@@ -4,6 +4,7 @@
 Using rules from here: http://www.pagat.com/tile/wdom/chickenfoot.html
 '''
 
+import itertools
 import logging
 import operator
 import optparse
@@ -62,28 +63,28 @@ class LoggingReporter(object):
 		self.logger.addHandler(logging.StreamHandler()) # writes to stderr
 
 	def root_found(self, player, tile):
-		self.logger.info('Root tile %s played by %s' % (tile, player.name))
+		self.logger.info('Root tile %s played by %s' % (tile, player))
 
 	def play_order(self, players):
-		self.logger.info('Order of play determined: %s' % [player.name for player in players])
+		self.logger.info('Order of play determined: %s' % [player for player in players])
 
 	def draw(self, player, tile):
-		self.logger.info('Player %s drew tile: %s' % (player.name, tile))
+		self.logger.info('Player %s drew tile: %s' % (player, tile))
 
 	def turn_start(self, player, state):
-		self.logger.info('Turn start: %s; game state: %s' % (player.name, state))
+		self.logger.info('Turn start: %s; game state: %s' % (player, state))
 		
 	def root_not_found(self):
 		self.logger.info('Root not found, all players drawing')
 
 	def opportunities(self, player, tiles):
-		self.logger.debug('Opportunities for player %s: %s' % (player.name, tiles))
+		self.logger.debug('Opportunities for player %s: %s' % (player, tiles))
 
 	def play(self, player, tile, parent):
-		self.logger.info('Player %s played %s under %s' % (player.name, tile, parent.tile))
+		self.logger.info('Player %s played %s under %s' % (player, tile, parent.tile))
 
 	def initial_hands(self, players):
-		self.logger.info('Player hands: %s' % (pprint.pformat(dict((player.name, player.hand) for player in players))))
+		self.logger.info('Player hands: %s' % (pprint.pformat(dict((player, player.hand) for player in players))))
 
 class ReporterCollection(object):
 	def __init__(self, reporters):
@@ -484,6 +485,10 @@ class Player(object):
 		self.name = name
 		self.hand = []
 
+	def __repr__(self):
+		'Describe this instance by class and player name'
+		return '<%s: %s>' % (self.__class__.__name__, self.name)
+
 	def add_tile(self, tile):
 		'''
 		Add a tile into a player's hand
@@ -588,24 +593,23 @@ class GameRunner(object):
 		self.reporters = [globals()[class_name]() for class_name in reporter_class_names]
 		self.aggregate_scores = dict((player, 0) for player in self.players)
 
-	def next_required_root(self):
-		while True:
-			for i in xrange(self.set_size+1):
-				yield i
-
 	def run(self):
+		required_root_iterator = itertools.cycle(xrange(self.set_size+1))
 		for i in xrange(self.rounds):
-			required_root = self.next_required_root()
-			game = Game(required_root, self.set_size, self.starting_hand_size, self.players, reporters=[])
+			# FIXME: kind of funky to require .next()
+			required_root = required_root_iterator.next()
+			game = Game(required_root, self.set_size, self.starting_hand_size, self.players, reporters=self.reporters)
 			game.run()
 			for player in self.players:
-				game.aggregate_scores[player] += game.scores[player]
+				self.aggregate_scores[player] += game.scores[player]
 
-def main():
+def parse_args():
 	'''
-	Runs the simulation.
+	Evaluates the invoking command line and returns (opts, num_rounds), wherein 'opts'
+	is in the style of optparse.OptionParser.
 
-	Create a GameRunner, seed it with options parsed from the command line, and invoke it.
+
+	Exits via OptionParser.error if the command line is invalid (e.g. bad options or args).
 	'''
 	parser = optparse.OptionParser(
 		usage='%prog N',
@@ -631,6 +635,21 @@ def main():
 	# make sure we're simulating at least one round
 	if num_rounds <= 0:
 		parser.error('Number of rounds must be greater than 0')
+
+	# overwrite opts.num_args with the normalized version
+	opts.num_rounds = num_rounds
+	
+	# todo: validate options
+
+	return (opts, num_rounds)
+
+def main():
+	'''
+	Runs the simulation.
+
+	Create a GameRunner, seed it with options parsed from the command line, and invoke it.
+	'''
+	opts, num_rounds = parse_args()
 
 	# figure out what we'll report to
 	reporters = [LoggingReporter()] if opts.verbose else []

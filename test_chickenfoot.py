@@ -621,3 +621,57 @@ class PlayerTest(unittest.TestCase):
 		for i in range(20):
 			random.shuffle(opportunities)
 			self.assertEquals(99, player._pick_tile(opportunities).value)
+
+class GameRunnerTest(unittest.TestCase):
+	def test_run(self):
+		'GameRunner.run: creates Games and calls their "run" methods'
+		# binding for lookup inside MockGame.__init__
+		executing_test = self
+
+		class MockGame(object):
+			'Mocks chickenfoot.Game'
+			# track how many instances are created
+			instance_count = 0
+
+			def __init__(self, required_root, set_size, starting_hand_size, players, reporters):
+				'assert that args provided are as expected'
+				# todo: assert required_root - how?
+				executing_test.assertEquals(2, set_size)
+				executing_test.assertEquals(3, starting_hand_size)
+				# player properties
+				executing_test.assertEquals(
+					[
+						chickenfoot.MaxValuePlayer, 
+						chickenfoot.RandomPlayer, 
+						chickenfoot.MaxValuePlayer, 
+						chickenfoot.RandomPlayer
+					], 
+					[i.__class__ for i in players]
+				)
+				executing_test.assertEquals(['p0', 'p1', 'p2', 'p3'], [i.name for i in players])
+				# reporters
+				executing_test.assertEquals([chickenfoot.LoggingReporter], [i.__class__ for i in reporters])
+
+				# must copy in players for interaction with GameRunner.aggregate_scores
+				self.players = players
+				# increment the count
+				self.__class__.instance_count += 1
+
+			def run(self):
+				'Generate bogus, predictable scores'
+				self.scores = dict((player, i*5) for i, player in enumerate(self.players))
+
+		runner = chickenfoot.GameRunner(10, ['MaxValuePlayer', 'RandomPlayer', 'MaxValuePlayer', 'RandomPlayer'], 2, 3, ['LoggingReporter'])
+		with MockContext(chickenfoot, 'Game', MockGame):
+			runner.run()
+		
+		# one game should have been created per round
+		self.assertEquals(10, MockGame.instance_count)
+		# aggregate scores should be 10 * each round, which is (p1: 0, p2: 5, p3: 10, p4: 15)
+		expected = {
+			'p0': 0,
+			'p1': 50,
+			'p2': 100,
+			'p3': 150,
+		}
+		self.assertEquals(expected, dict([(player.name, score) for player, score in runner.aggregate_scores.iteritems()]))
