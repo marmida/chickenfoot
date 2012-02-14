@@ -495,7 +495,7 @@ class GameTest(unittest.TestCase):
 		the round.  Mock out the player's initial draw, and then check that 
 		'run' achieved the expected end of the game.
 		'''
-		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')], reporters=[chickenfoot.LoggingReporter()])
+		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')], reporters=[])
 		self._mock_game_methods(game, [[chickenfoot.Tile(a, b) for a, b in [(9, 9), (9, 1), (9, 2), (9, 3), (9, 4), (1, 0)]]])
 		game.run()
 
@@ -513,9 +513,6 @@ class GameTest(unittest.TestCase):
 				self.assertEquals((1, 0), child.children[0].tile.ends)
 				break
 		
-		# game should be in the 'OPEN' state
-		self.assertEquals(game.State.OPEN, game.state)
-
 		# score dict should have been created
 		self.assertEquals({game.players[0]: 0}, game.scores)
 
@@ -541,7 +538,7 @@ class GameTest(unittest.TestCase):
 		self.assertEquals((9, 9), game.root.tile.ends)
 		# root should have 4 children, in any order
 		self.assertEquals(set([(9, 1), (9, 2), (9, 3), (9, 4)]), set([child_node.tile.ends for child_node in game.root.children]))
-
+		
 		# find the (9, 1) tile
 		for child in game.root.children:
 			if child.tile.ends == (9, 1):
@@ -549,11 +546,67 @@ class GameTest(unittest.TestCase):
 				self.assertEquals((1, 0), child.children[0].tile.ends)
 				break
 		
-		# game should be in the 'OPEN' state
-		self.assertEquals(game.State.OPEN, game.state)
-
 		# score dict should have been created
 		self.assertEquals({'p1': 4, 'p2': 0}, dict((player.name, score) for player, score in game.scores.iteritems()))
+
+	def test_run_chickie(self):
+		'''
+		Game.run: plays tiles correctly under a chicken foot
+
+		Using crafted hands, assert that the game completes as expected.
+		'''
+		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')], reporters=[])
+		self._mock_game_methods(
+			game, 
+			[
+				[chickenfoot.Tile(a, b) for a, b in [(9, 9), (9, 1), (9, 2), (9, 3), (9, 4), (4, 4), (4, 3), (4, 2), (4, 1)]],
+			]
+		)
+		game.run()
+
+		# now assert that the first player has an empty hand, and that the tree 
+		# was built as expected
+		self.assertEquals([], game.players[0].hand)
+		self.assertEquals((9, 9), game.root.tile.ends)
+		# root should have 4 children, in any order
+		self.assertEquals(set([(9, 1), (9, 2), (9, 3), (9, 4)]), set([child_node.tile.ends for child_node in game.root.children]))
+		
+		# find the (9, 4) tile
+		for child in game.root.children:
+			if child.tile.ends == (9, 4):
+				# should have played (4, 4) under (9, 4)
+				chickie_node = child.children[0]
+				self.assertEquals((4, 4), chickie_node.tile.ends)
+
+				# chickie should have 3 child nodes
+				self.assertEquals(set([(4, 3), (4, 2), (4, 1)]), set([sub_child.tile.ends for sub_child in chickie_node.children]))
+				break
+		
+		# score dict should have been created
+		self.assertEquals({'p1': 0}, dict((player.name, score) for player, score in game.scores.iteritems()))
+
+	def test_run_draw(self):
+		'''
+		Game.run: calls draw when no opportunities are present
+		'''
+		game = chickenfoot.Game(9, 9, 7, [chickenfoot.MaxValuePlayer('p1')], reporters=[])
+		# mock some Game methods
+		def mock_setup_player_hands(self):
+			'Give the only player a crafted hand to get the game through finding the root'
+			self.players[0].hand = [chickenfoot.Tile(a, b) for a, b in [(9, 9), (9, 1), (9, 2), (9, 3), (9, 4), (5, 5)]]
+		game._setup_player_hands = types.MethodType(mock_setup_player_hands, game)
+
+		game.boneyard.tiles = [chickenfoot.Tile(a, b) for a, b in [(5, 1), (6, 2), (7, 3), (8, 4)]]
+		def mock_draw(self):
+			'return tiles in reverse order, and increment invocation_count'
+			return self.tiles.pop()
+		game.boneyard.draw = types.MethodType(mock_draw, game.boneyard)
+
+		# run the game and assert the calls and tiles
+		game.run()
+
+		self.assertEquals([], game.boneyard.tiles)
+		self.assertEquals(set([(5, 5), (6, 2), (7, 3), (8, 4)]), set([leaf.tile.ends for leaf in game.root.leaves]))
 
 class TileTest(unittest.TestCase):
 	def test_ends(self):

@@ -8,6 +8,7 @@ import itertools
 import logging
 import operator
 import optparse
+import pprint
 import random
 
 # In this particular version of the game, the double blank is worth 50 points.
@@ -96,9 +97,6 @@ class ReporterCollection(object):
 			method(*args, **kwargs)
 	
 	# todo: find a way to unify these function defs
-
-	def root_round(self, *args, **kwargs):
-		self._dispatch('root_round', args, kwargs)
 
 	def play_order(self, *args, **kwargs):
 		self._dispatch('play_order', args, kwargs)
@@ -676,7 +674,7 @@ def main():
 	opts, num_rounds = parse_args()
 
 	# figure out what we'll report to
-	reporters = [LoggingReporter()] if opts.verbose else []
+	reporters = ['LoggingReporter'] if opts.verbose else []
 
 	# build the runner, and away we go
 	runner = GameRunner(num_rounds, opts.players, opts.set_size, opts.starting_hand_size, reporters)
