@@ -603,6 +603,25 @@ class GameRunner(object):
 			for player in self.players:
 				self.aggregate_scores[player] += game.scores[player]
 
+def validate_positive_int(s, name, error_method):
+	'''
+	Returns the string s as an int.
+
+	If the int value of s is either invalid or less than 1, call error_method with a description.
+	This is most useful when provided the 'error' method of an optparse.OptionParser instance.
+	'''
+	# test converting s to an int
+	try: 
+		num = int(s)
+	except ValueError:
+		error_method('Invalid %s: %s; must be a number' % (name, s))
+	
+	# guarantee num > 0
+	if num <= 0:
+		error_method('Invalid %s: %s; must be greater than 0' % (name, num))
+
+	return num
+
 def parse_args():
 	'''
 	Evaluates the invoking command line and returns (opts, num_rounds), wherein 'opts'
@@ -616,30 +635,35 @@ def parse_args():
 		description='Simulates running N number of rounds of the dominoes game, "Chicken foot," and prints a result summary',
 	)
 	parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False)
-	parser.add_option('-p', '--player', action='append', dest='players', default=['MaxValuePlayer', 'RandomPlayer'])
-	parser.add_option('--set-size', action='store', dest='set_size', default=9)
-	parser.add_option('--starting-hand-size', action='store', dest='starting_hand_size', default=7)
+	parser.add_option('-p', '--player', action='append', dest='players', default=['MaxValuePlayer', 'RandomPlayer'],
+		help='Class names from which to create Player instances; can be repeated to provide multiple players. '
+				'Defaults to two players: a MaxValuePlayer and a RandomPlayer. '
+				'Because this program currently doesn\'t allow loading external code, '
+				'this option isn\'t all that useful.')
+	parser.add_option('--set-size', action='store', dest='set_size', default=9,
+		help='Domino set size, given as the "double X" set size; e.g. "9" for a "double nine" set.  Default: 9')
+	parser.add_option('--starting-hand-size', action='store', dest='starting_hand_size', default=7,
+		help='Number of tiles that each player begins with in their hand.  Default: 7')
 
 	opts, args = parser.parse_args()
 
 	if len(args) != 1:
 		parser.error('Requires a number of a rounds to simulate.')
-	num_rounds = args[0]
 	
-	# test converting num_rounds to an int
-	try: 
-		num_rounds = int(num_rounds)
-	except ValueError:
-		parser.error('Invalid number of rounds: %s' % num_rounds)
+	num_rounds = validate_positive_int(args[0], 'number of rounds', parser.error)
 	
-	# make sure we're simulating at least one round
-	if num_rounds <= 0:
-		parser.error('Number of rounds must be greater than 0')
+	# validate player class names
+	for class_name in opts.players:
+		if class_name not in globals():
+			parser.error('Invalid player class: %s' % class_name)
+		player_class = globals()[class_name]
+		# we'll assume that if the class has '_pick_tile', then it's a Player derivative
+		if not hasattr(player_class, '_pick_tile'):
+			parser.error('Invalid player class: %s' % class_name)
 
-	# overwrite opts.num_args with the normalized version
-	opts.num_rounds = num_rounds
-	
-	# todo: validate options
+	# validate numeric args
+	opts.set_size = validate_positive_int(opts.set_size, 'set size', parser.error)
+	opts.starting_hand_size = validate_positive_int(opts.starting_hand_size, 'starting hand size', parser.error)
 
 	return (opts, num_rounds)
 
