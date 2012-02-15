@@ -890,3 +890,13 @@ class ParseArgsTest(unittest.TestCase):
 		self.assertEquals(['MaxValuePlayer', 'RandomPlayer'], actual.players)
 		self.assertEquals(9, actual.set_size)
 		self.assertEquals(7, actual.starting_hand_size)
+
+class BoneyardTest(unittest.TestCase):
+	def test_draw(self):
+		'Boneyard.draw: returns tiles until the boneyard is empty, then returns None'
+		boneyard = chickenfoot.Boneyard(1) # double 1 set should have three tiles: (1, 1), (1, 0), and (0, 0)
+		for i in range(3):
+			self.assertTrue(boneyard.draw())
+
+		# fourth draw should return None
+		self.assertEquals(None, boneyard.draw())

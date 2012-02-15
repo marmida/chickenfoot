@@ -32,7 +32,12 @@ class Boneyard(object):
 		self.tiles = [Tile(a, b) for a, b in factorial_combinations(set_size)]
 
 	def draw(self):
-		'Pick one tile from the boneyard randomly, remove it, and return it.'
+		'''
+		Pick one tile from the boneyard randomly, remove it, and return it.
+		Returns None if there are no tiles left.
+		'''
+		if not self.tiles:
+			return None
 		tile = random.choice(self.tiles)
 		self.tiles.remove(tile)
 		return tile
@@ -330,6 +335,8 @@ class Game(object):
 	def _opportunities(self, player):
 		'''
 		Return an iterable of tiles that this player could play
+
+		todo: refactor "opportunities" to include attachment position info
 		'''
 		if self.state == self.State.CHICKIE:
 			# opportunities limited to current chickie
