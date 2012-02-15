@@ -10,6 +10,7 @@ import operator
 import optparse
 import pprint
 import random
+import time
 
 # In this particular version of the game, the double blank is worth 50 points.
 # I was introduced to the game with this rule included.
@@ -693,14 +694,19 @@ def main():
 	# figure out what we'll report to
 	reporters = ['LoggingReporter'] if opts.verbose else []
 
-	# build the runner, and away we go
+	# build the runner, start a timer, and away we go
 	runner = GameRunner(num_rounds, opts.players, opts.set_size, opts.starting_hand_size, reporters)
+	start_time = time.time()
 	runner.run()
+	end_time = time.time()
 
-	print 'Rounds: %s' % runner.rounds
+	print 'Rounds:       %d' % runner.rounds
+	print 'Time elapsed: %.3f secs' % (end_time - start_time)
+	print 'Rounds/sec:   %.3f' % (float(runner.rounds) / (end_time - start_time))
+	print ''
 	print 'Aggregate scores:'
 	for player, score in runner.aggregate_scores.iteritems():
-		print '   %s % 10d' % (player, score)
+		print '%35s % 10d' % (player, score)
 
 if __name__ == '__main__':
 	main()
