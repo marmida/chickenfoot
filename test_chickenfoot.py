@@ -200,6 +200,47 @@ class GameTest(unittest.TestCase):
 		self.assertEquals(4, len(p1.hand))
 		self.assertEquals(4, len(p2.hand))
 
+	def test_root_tile_turn_boneyard_exhausted(self):
+		'''
+		Game._root_tile_turn: handles the case when the boneyard is exhausted before all players can draw
+		'''
+		# create two players
+		p1 = chickenfoot.Player('p1')
+		p2 = chickenfoot.Player('p2')
+		# players start with empty hands
+		
+		# create the game and run the turn
+		game = chickenfoot.Game(1, 9, 7, [p1, p2])
+
+		# mock out game.boneyard.draw to return things in an order
+		def mock_draw(self):
+			'return tiles in reverse order'
+			if self.tiles:
+				return self.tiles.pop()
+			return None
+		game.boneyard.draw = types.MethodType(mock_draw, game.boneyard)
+
+		# give the boneyard the tiles (1, 1), (1, 0), (0, 0); these will be drawn in reverse order
+		game.boneyard.tiles = [chickenfoot.Tile(a, b) for a, b in [(1, 1), (1, 0), (0, 0)]]
+
+		# run one root tile turn, both players should have drawn
+		game._root_tile_turn()
+		self.assertEquals([(0, 0)], [tile.ends for tile in p1.hand])
+		self.assertEquals([(1, 0)], [tile.ends for tile in p2.hand])
+		self.assertFalse(game.root)
+
+		# run another root tile turn; p1 should have drawn the root tile; p2, nothing
+		game._root_tile_turn()
+		self.assertEquals([(0, 0), (1, 1)], [tile.ends for tile in p1.hand])
+		self.assertEquals([(1, 0)], [tile.ends for tile in p2.hand])
+		self.assertFalse(game.root)
+
+		# run another root tile turn; p1 should play the root
+		game._root_tile_turn()
+		self.assertEquals([(0, 0)], [tile.ends for tile in p1.hand])
+		self.assertEquals([(1, 0)], [tile.ends for tile in p2.hand])
+		self.assertTrue(game.root)
+
 	def test_handle_play_root_to_open(self):
 		'''
 		Game._handle_play: switches to normal gameplay after all four arms of the root have been built
@@ -617,7 +658,7 @@ class GameTest(unittest.TestCase):
 
 		game.boneyard.tiles = [chickenfoot.Tile(a, b) for a, b in [(5, 1), (6, 2), (7, 3), (8, 4)]]
 		def mock_draw(self):
-			'return tiles in reverse order, and increment invocation_count'
+			'return tiles in reverse order'
 			return self.tiles.pop()
 		game.boneyard.draw = types.MethodType(mock_draw, game.boneyard)
 

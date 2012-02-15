@@ -329,7 +329,10 @@ class Game(object):
 			# we did not find the starting tile
 			# all players need to draw
 			for i in self.players:
-				i.add_tile(self.boneyard.draw())
+				# it's possible that the boneyard is exhausted before all players get a tile
+				drawn = self.boneyard.draw()
+				if drawn:
+					i.add_tile(drawn)
 			self.report.root_not_found()
 	
 	def _opportunities(self, player):
@@ -653,7 +656,7 @@ def parse_args():
 	opts, args = parser.parse_args()
 	
 	# odd: optparse treats the default for 'append' options differently - it does not override them with
-	# whatever is provided by the user on thec ommand line.
+	# whatever is provided by the user on the command line.
 	# see http://bugs.python.org/issue5088
 	# we'll manually assign a default
 	if not opts.players:
