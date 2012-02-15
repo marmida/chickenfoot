@@ -831,14 +831,18 @@ class ParseArgsTest(unittest.TestCase):
 				# everything is hunky dory, suppress this exception
 				return True
 			
-			elif self.expected_error:
+			elif not exc_type and self.expected_error:
 				# we are exiting the context without hitting an expected exception; that's a problem
-				self.test_case.fail('Did not call OptionParser.error, although this was expected')
+				self.test_case.fail('Did not call OptionParser.error as required')
+
+			# if exc_type is True, we're handling an unexpected exception, and should let it pass through
 
 	class MockValues(object):
 		'Mocks optparse.Values'
 		def __init__(self, attrs):
 			'set attributes named after the keys in "attrs", with corresponding values'
+			if 'players' not in attrs:
+				attrs['players'] = []
 			for attrname, attrval in attrs.iteritems():
 				setattr(self, attrname, attrval)
 

@@ -640,7 +640,7 @@ def parse_args():
 		description='Simulates running N number of rounds of the dominoes game, "Chicken foot," and prints a result summary',
 	)
 	parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False)
-	parser.add_option('-p', '--player', action='append', dest='players', default=['MaxValuePlayer', 'RandomPlayer'],
+	parser.add_option('-p', '--player', action='append', dest='players', default=[],
 		help='Class names from which to create Player instances; can be repeated to provide multiple players. '
 				'Defaults to two players: a MaxValuePlayer and a RandomPlayer. '
 				'Because this program currently doesn\'t allow loading external code, '
@@ -651,7 +651,14 @@ def parse_args():
 		help='Number of tiles that each player begins with in their hand.  Default: 7')
 
 	opts, args = parser.parse_args()
-
+	
+	# odd: optparse treats the default for 'append' options differently - it does not override them with
+	# whatever is provided by the user on thec ommand line.
+	# see http://bugs.python.org/issue5088
+	# we'll manually assign a default
+	if not opts.players:
+		opts.players = ['MaxValuePlayer', 'RandomPlayer']
+	
 	if len(args) != 1:
 		parser.error('Requires a number of a rounds to simulate.')
 	
