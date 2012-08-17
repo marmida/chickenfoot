@@ -12,12 +12,13 @@ import itertools
 import optparse
 import random
 import types
-import unittest
+import unittest # todo: replace with nose.tools
 
 
 # code under test
-import chickenfoot
+import chickenfoot.chickenfoot as chickenfoot
 
+# todo: replace with mock
 class MockContext(object):
 	'''
 	A context manager that replaces an attribute on entry, and restores it on exit.

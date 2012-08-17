@@ -1,0 +1,5 @@
+venv
+*-nosetests.xml
+MANIFEST
+.tox
+*.pyc
