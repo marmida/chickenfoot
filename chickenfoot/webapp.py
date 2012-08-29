@@ -23,14 +23,25 @@ def hello(game_id):
         	[
         		{'a': 9, 'b': 2, 'turn': 4, 'inverted': False},
 				[
-	                {'a': 2, 'b': 2, 'turn': 7, 'inverted': False},
+	                {'a': 2, 'b': 2, 'turn': 5, 'inverted': False},
 	                {'a': 4, 'b': 2, 'turn': 6, 'inverted': True},
-	                {'a': 2, 'b': 1, 'turn': 5, 'inverted': False},
+	                {'a': 2, 'b': 1, 'turn': 7, 'inverted': False},
 	            ],
         	],
-        ],	
+        ],
+        'maxTurn': 7,
+        'p1Hand': [
+            {'a': 9, 'b': 1, 'turnHandAdded': 1, 'turnHandRemoved': 2},
+            {'a': 9, 'b': 2, 'turnHandAdded': 1, 'turnHandRemoved': 4},
+            {'a': 4, 'b': 2, 'turnHandAdded': 6, 'turnHandRemoved': 6},
+        ],
+        'p2Hand': [
+            {'a': 9, 'b': 9, 'turnHandAdded': 1, 'turnHandRemoved': 1},
+            {'a': 9, 'b': 4, 'turnHandAdded': 1, 'turnHandRemoved': 3},
+            {'a': 2, 'b': 2, 'turnHandAdded': 1, 'turnHandRemoved': 5},
+            {'a': 2, 'b': 1, 'turnHandAdded': 7, 'turnHandRemoved': 7},
+        ],
 	}))
-	response.headers['Access-Control-Allow-Origin'] = '*' # todo: maybe this should be handled by nginx proxy up front?
 	return response
 
 def parse_args():
